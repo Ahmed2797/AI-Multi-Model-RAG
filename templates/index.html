@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Vision RAG - Attention Paper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .loader { border-top-color: #f30303; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Style for Markdown content */
+        #answer-text h1, #answer-text h2, #answer-text h3 { font-weight: bold; margin-top: 10px; }
+        #answer-text ul { list-style-type: disc; margin-left: 20px; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto space-y-8">
+        
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-gray-800">PDF Vision Assistant</h1>
+            <p class="text-gray-600 mt-2">Upload a PDF and ask questions about its text, tables, and diagrams.</p>
+        </header>
+
+        <section class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold mb-4">Step 1: Upload PDF</h2>
+            <div class="flex items-center space-x-4">
+                <input type="file" id="pdf-file" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                <button onclick="uploadPDF()" id="upload-btn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">Process PDF</button>
+            </div>
+            <p id="upload-status" class="mt-3 text-sm font-medium"></p>
+        </section>
+
+        <section class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold mb-4">Step 2: Ask a Question</h2>
+            <div class="flex flex-col space-y-4">
+                <input type="text" id="query-input" placeholder="e.g., Explain the Multi-Head Attention diagram" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <button onclick="askQuestion()" id="ask-btn" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-bold transition">Get Answer</button>
+            </div>
+        </section>
+
+        <div id="results-area" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-lg border-l-4 border-blue-500">
+                <h3 class="text-lg font-bold text-gray-800 mb-2 text-sm uppercase tracking-wider text-gray-400">AI Answer:</h3>
+                <div id="answer-text" class="text-gray-700 leading-relaxed"></div>
+            </div>
+
+            <div id="image-container" class="hidden bg-white p-4 rounded-lg shadow-lg border border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 italic">Retrieved Reference Image:</h3>
+                <img id="relevant-image" src="" alt="PDF Figure" class="mx-auto rounded-lg shadow-sm border max-h-[500px]">
+            </div>
+        </div>
+
+        <div id="global-loader" class="hidden flex flex-col items-center justify-center py-10">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <p class="text-gray-500 animate-pulse">Analyzing document and images...</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000";
+
+        async function uploadPDF() {
+            const fileInput = document.getElementById("pdf-file");
+            const status = document.getElementById("upload-status");
+            if (!fileInput.files[0]) return alert("Please select a file first.");
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            status.innerText = "⏳ Indexing PDF... Please wait.";
+            status.className = "mt-3 text-sm font-medium text-blue-600";
+
+            try {
+                const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+                const data = await response.json();
+                status.innerText = "✅ " + data.message;
+                status.className = "mt-3 text-sm font-medium text-green-600";
+            } catch (err) {
+                status.innerText = "❌ Connection failed.";
+                status.className = "mt-3 text-sm font-medium text-red-600";
+            }
+        }
+
+        async function askQuestion() {
+            const query = document.getElementById("query-input").value;
+            const resultsArea = document.getElementById("results-area");
+            const answerDiv = document.getElementById("answer-text");
+            const imgContainer = document.getElementById("image-container");
+            const imgTag = document.getElementById("relevant-image");
+            const loader = document.getElementById("global-loader");
+
+            if (!query) return;
+
+            resultsArea.classList.add("hidden");
+            imgContainer.classList.add("hidden");
+            loader.classList.remove("hidden");
+
+            try {
+                const response = await fetch(`${API_BASE}/ask?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                // 2. FIXED ID: answer-text matches the HTML div
+                answerDiv.innerHTML = marked.parse(data.answer);
+
+                loader.classList.add("hidden");
+                resultsArea.classList.remove("hidden");
+
+                if (data.relevant_image) {
+                    imgTag.src = `${API_BASE}${data.relevant_image}`;
+                    imgContainer.classList.remove("hidden");
+                }
+            } catch (err) {
+                loader.classList.add("hidden");
+                alert("Error fetching answer.");
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision RAG AI Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #8bc5ff;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+        }
+
+        .search-area {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        /* Result Sections */
+        .answer-card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+            border-left: 5px solid var(--primary);
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-top: 0;
+            color: #334155;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .img-item {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s;
+        }
+
+        .img-item:hover {
+            transform: scale(1.02);
+        }
+
+        .retrieved-img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .img-caption {
+            padding: 10px;
+            font-size: 0.85rem;
+            color: #64748b;
+            background: #f8fafc;
+        }
+
+        /* Utils */
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Vision RAG</h1>
+            <p>Your Intelligent AI Document Assistant</p>
+        </header>
+
+        <section class="search-area">
+            <form id="queryForm">
+                <div class="input-group">
+                    <input type="text" id="queryInput" placeholder="Ask about symptoms, reports, or data..." required>
+                    <button type="submit" id="submitBtn">Analyze Now</button>
+                </div>
+            </form>
+        </section>
+
+        <div id="loader" class="loader">
+            <div class="spinner"></div>
+            <p>Searching database and analyzing images...</p>
+        </div>
+
+        <main id="resultArea" class="hidden">
+            <div class="answer-card">
+                <h3 class="section-title">AI Analysis</h3>
+                <div id="answerText"></div>
+            </div>
+
+            <div id="gallerySection" class="hidden">
+                <h3 class="section-title">Visual Evidence (Retrieved Images)</h3>
+                <div id="imageGrid" class="image-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('queryForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loader');
+        const resultArea = document.getElementById('resultArea');
+        const gallerySection = document.getElementById('gallerySection');
+        const imageGrid = document.getElementById('imageGrid');
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            // UI States
+            submitBtn.disabled = true;
+            loader.style.display = 'block';
+            resultArea.classList.add('hidden');
+            gallerySection.classList.add('hidden');
+            imageGrid.innerHTML = '';
+
+            try {
+                const query = document.getElementById('queryInput').value;
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+
+                if (!response.ok) throw new Error('Server response error');
+
+                const data = await response.json();
+                
+                // Render Markdown Answer
+                document.getElementById('answerText').innerHTML = marked.parse(data.answer);
+
+                // Process Images
+                if (data.images && data.images.length > 0) {
+                    gallerySection.classList.remove('hidden');
+                    data.images.forEach((imgData, index) => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'img-item';
+                        
+                        // Clean Base64 Data
+                        let cleanB64 = imgData.trim().replace(/^b['"]|['"]$/g, '').replace(/\s/g, '');
+                        const finalSrc = cleanB64.startsWith('data:image') ? cleanB64 : `data:image/png;base64,${cleanB64}`;
+
+                        wrapper.innerHTML = `
+                            <img src="${finalSrc}" class="retrieved-img" alt="AI Evidence" onerror="this.parentElement.innerHTML='<p style=padding:20px;color:red;>Image Load Failed</p>'">
+                            <div class="img-caption">Source Evidence #${index + 1}</div>
+                        `;
+                        imageGrid.appendChild(wrapper);
+                    });
+                }
+
+                resultArea.classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                alert("Something went wrong. Please check if the server is running.");
+            } finally {
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html> -->
