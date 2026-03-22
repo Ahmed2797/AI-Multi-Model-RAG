@@ -2,6 +2,9 @@ import os
 import fitz 
 import pdfplumber
 import pandas as pd
+import shutil
+import whisper
+import sounddevice as sd
 from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -113,6 +116,62 @@ async def ask_query(q: str = Query(...)):
             break
 
     return {"answer": answer, "relevant_image": image_url}
+
+
+# --- 1. Move Model Loading to Global Scope (Top of file) ---
+print("Loading Whisper model...")
+whisper_model = whisper.load_model("base")
+
+# ... rest of your setup ...
+
+@app.post("/voice-query")
+async def handle_voice_query(file: UploadFile = File(...)):
+    temp_file = f"temp_{file.filename}"
+    with open(temp_file, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        # 2. Transcribe (Using the global whisper_model)
+        result = whisper_model.transcribe(temp_file, fp16=False)
+        user_text = result["text"].strip()
+
+        if not user_text:
+            return {"answer": "I couldn't hear anything. Please try again."}
+
+        # 3. RAG Logic - Fixed the variable name from 'q' to 'user_text'
+        query_vec = get_embedding(user_text)
+        results = index.query(vector=query_vec, top_k=3, include_metadata=True)
+        
+        if not results['matches']:
+            return {"answer": "No relevant info found.", "transcription": user_text}
+
+        context_chunks = [match['metadata']['text'] for match in results['matches']]
+        
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano", # Note: Ensure your model name is correct (e.g., gpt-4o)
+            messages=[
+                {"role": "system", "content": "You are a research assistant. Use context to answer."},
+                {"role": "user", "content": f"Context: {' '.join(context_chunks)}\n\nQuestion: {user_text}"} # Fixed 'q' to 'user_text'
+            ]
+        )
+        
+        answer = response.choices[0].message.content
+        image_url = None
+    
+        for match in results['matches']:
+            if match['metadata'].get('type') == 'image':
+                image_url = f"/extracted_images/{match['metadata']['file']}"
+                break
+
+        return {
+            "transcription": user_text, # Good for debugging
+            "answer": answer, 
+            "relevant_image": image_url
+        }
+
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 if __name__ == "__main__":
     import uvicorn
