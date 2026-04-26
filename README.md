@@ -6,6 +6,8 @@ This project is a Multi-Modal Retrieval-Augmented Generation (RAG) system design
 
 The application allows users to upload technical papers (e.g., the "Attention Is All You Need" PDF) and ask complex questions. The AI doesn't just describe the answer; it retrieves the specific figure or table from the document that represents the concept, displaying it alongside a GPT-4o generated explanation.
 
+![AI](multimodel-rag-img.png)
+
 ### Core Features
 
 - Multi-Modal Extraction: Uses PyMuPDF and pdfplumber to distinguish between prose, data tables, and embedded images.
