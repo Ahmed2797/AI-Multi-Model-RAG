@@ -1,5 +1,6 @@
 # Pinecone Index Setup
-INDEX_NAME = "attention-paper-index-v1"
+# INDEX_NAME = "attention-paper-index-v1"
+INDEX_NAME = "brain-tumors-ucni-v1"
 
 # Image-Dir
 IMAGE_DIR = "extracted_images"
